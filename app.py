@@ -6,7 +6,7 @@ import numpy as np
 import io
 import os
 from io import StringIO
-from models import get_fork_status_from_image
+from models import get_fork_status_from_image, get_result
 import pandas as pd
 
 @st.cache
@@ -94,43 +94,19 @@ def main():
                     st.table(df)
 
 
-
                     
-                    
-
-
-
 
             elif enhance_type == 'Круг':
-                #
-                hsv_min = np.array((2, 28, 65), np.uint8)
-                hsv_max = np.array((26, 238, 255), np.uint8)
 
-                #new_img = np.array(our_image.convert('RGB'))
+
+                new_img = np.array(our_image.convert('RGB'))
                 image = np.array(our_image)
 
-                hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-                thresh = cv2.inRange(hsv, hsv_min, hsv_max)
-
-                contours, hierarchy = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-                circle_img = cv2.drawContours(image, contours, -1, (255, 0, 0), 3, cv2.LINE_AA, hierarchy, 1)
-
-                gray = cv2.cvtColor(circle_img, cv2.COLOR_BGR2GRAY)
-                circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1.05, 100)
-                if circles is not None:
-                    # convert the (x, y) coordinates and radius of the circles to integers
-                    circles = np.round(circles[0, :]).astype("int")
-                    # loop over the (x, y) coordinates and radius of the circles
-                    for (x, y, r) in circles:
-                        # draw the circle in the output image, then draw a rectangle
-                        # corresponding to the center of the circle
-
-                        circle_img=cv2.rectangle(image, (x - 5, y - 5), (x + 5, y + 5), (0, 128, 255), -1)
-
-                        circle_resized_image = cv2.resize(circle_img, (400, 300))
+                circle_status,circle_image = get_result(new_img)
 
 
-                        st.image(circle_resized_image)
+                st.image(circle_image)
+                st.text(circle_status)
 
             elif enhance_type == 'Оригинал':
                 image = np.array(our_image)

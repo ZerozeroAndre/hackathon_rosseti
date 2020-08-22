@@ -7,6 +7,8 @@ show_imgs = True
 img_width = 800
 img_height = 600
 
+min_radius_treshold = 40
+
 color2range = {
     'yellow':{
         "l_h": 21,
@@ -272,9 +274,10 @@ def get_fork_status_from_image(image):
         caps = get_caps(contours)
         pairs_cap = get_pair_cap(caps)
         caps_belonging_fork = remove_caps_not_belong_fork(pairs_cap)
+
         sorted_pairs_caps = fun_up_sorted_pairs_caps(caps_belonging_fork)
 
-        # print(sorted_pairs_caps)
+        print(sorted_pairs_caps)
         upper_caps = [sorted_pairs_caps[0][0], sorted_pairs_caps[1][0]]
         upper_cap = upper_caps[0]
 
@@ -368,3 +371,69 @@ def get_fork_status_from_image(image):
         #     cv2_imshow(binary)
 
     return result_connected_status, fork_image
+
+
+def get_result(img):
+    result_is_on = False
+
+    output = img.copy()
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1.2, 100)
+    device = None
+    # ensure at least some circles were found
+    if circles is not None:
+        # convert the (x, y) coordinates and radius of the circles to integers
+        circles = np.round(circles[0, :]).astype("int")
+        # loop over the (x, y) coordinates and radius of the circles
+        for (x, y, r) in circles:
+            if r < 60:
+                continue
+            device = img.copy()[y - r: y + r, x - r: x + r, :]
+            cv2.circle(output, (x, y), r, (0, 255, 0), 4)
+            cv2.rectangle(output, (x - 5, y - 5), (x + 5, y + 5), (0, 128, 255), -1)
+
+    hsv_min = np.array((2, 28, 65), np.uint8)
+    hsv_max = np.array((26, 238, 255), np.uint8)
+    img1 = device.copy()
+
+    hsv = cv2.cvtColor(device, cv2.COLOR_BGR2HSV)
+    thresh = cv2.inRange(hsv, hsv_min, hsv_max)
+    contours, hierarchy = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(img1, contours, -1, (255, 0, 0), 3, cv2.LINE_AA, hierarchy, 1)
+
+    center_contour = None
+    for i, c in enumerate(contours):
+        contours_poly = cv2.approxPolyDP(c, 3, True)
+        boundRect = cv2.boundingRect(contours_poly)
+        centers, radius = cv2.minEnclosingCircle(contours_poly)
+        center_contour = centers
+
+    x_center_device = int(img1.shape[1] / 2)
+    y_center_device = int(img1.shape[0] / 2)
+
+    result_image = img1.copy()
+    line_thickness = 2
+    cv2.line(result_image, (y_center_device, 0), (y_center_device, img1.shape[0]), (0, 255, 0),
+             thickness=line_thickness)
+    cv2.line(result_image, (0, x_center_device), (img1.shape[1], x_center_device), (0, 255, 0),
+             thickness=line_thickness)
+    if center_contour[0] < x_center_device and y_center_device < center_contour[1]:
+        cv2.line(result_image, (x_center_device, y_center_device), (int(center_contour[0]), int(center_contour[1])),
+                 (0, 255, 0), thickness=line_thickness + 1)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        org = (20, 20)
+        part_bgr = cv2.putText(result_image, 'On'.format(i), org, font,
+                               0.5, (0, 255, 0), 2, cv2.LINE_AA)
+        result_is_on = True
+    else:
+        cv2.line(result_image, (x_center_device, y_center_device), (int(center_contour[0]), int(center_contour[1])),
+                 (0, 0, 255), thickness=line_thickness + 1)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        org = (20, 20)
+        part_bgr = cv2.putText(result_image, 'Off'.format(i), org, font,
+                               0.5, (0, 0, 255), 2, cv2.LINE_AA)
+        result_is_on = False
+
+    return result_is_on, result_image
+
