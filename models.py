@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 show_imgs = True
 img_width = 800
 img_height = 600
+import imutils
 
 min_radius_treshold = 40
 
@@ -373,67 +374,246 @@ def get_fork_status_from_image(image):
     return result_connected_status, fork_image
 
 
-def get_result(img):
-    result_is_on = False
+# def get_result(img):
+#     result_is_on = False
+#
+#     output = img.copy()
+#     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+#
+#     circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1.2, 100)
+#     device = None
+#     # ensure at least some circles were found
+#     if circles is not None:
+#         # convert the (x, y) coordinates and radius of the circles to integers
+#         circles = np.round(circles[0, :]).astype("int")
+#         # loop over the (x, y) coordinates and radius of the circles
+#         for (x, y, r) in circles:
+#             if r < 60:
+#                 continue
+#             device = img.copy()[y - r: y + r, x - r: x + r, :]
+#             cv2.circle(output, (x, y), r, (0, 255, 0), 4)
+#             cv2.rectangle(output, (x - 5, y - 5), (x + 5, y + 5), (0, 128, 255), -1)
+#
+#     hsv_min = np.array((2, 28, 65), np.uint8)
+#     hsv_max = np.array((26, 238, 255), np.uint8)
+#     img1 = device.copy()
+#
+#     hsv = cv2.cvtColor(device, cv2.COLOR_BGR2HSV)
+#     thresh = cv2.inRange(hsv, hsv_min, hsv_max)
+#     contours, hierarchy = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+#     cv2.drawContours(img1, contours, -1, (255, 0, 0), 3, cv2.LINE_AA, hierarchy, 1)
+#
+#     center_contour = None
+#     for i, c in enumerate(contours):
+#         contours_poly = cv2.approxPolyDP(c, 3, True)
+#         boundRect = cv2.boundingRect(contours_poly)
+#         centers, radius = cv2.minEnclosingCircle(contours_poly)
+#         center_contour = centers
+#
+#     x_center_device = int(img1.shape[1] / 2)
+#     y_center_device = int(img1.shape[0] / 2)
+#
+#     result_image = img1.copy()
+#     line_thickness = 2
+#     cv2.line(result_image, (y_center_device, 0), (y_center_device, img1.shape[0]), (0, 255, 0),
+#              thickness=line_thickness)
+#     cv2.line(result_image, (0, x_center_device), (img1.shape[1], x_center_device), (0, 255, 0),
+#              thickness=line_thickness)
+#     if center_contour[0] < x_center_device and y_center_device < center_contour[1]:
+#         cv2.line(result_image, (x_center_device, y_center_device), (int(center_contour[0]), int(center_contour[1])),
+#                  (0, 255, 0), thickness=line_thickness + 1)
+#         font = cv2.FONT_HERSHEY_SIMPLEX
+#         org = (20, 20)
+#         part_bgr = cv2.putText(result_image, 'On'.format(i), org, font,
+#                                0.5, (0, 255, 0), 2, cv2.LINE_AA)
+#         result_is_on = True
+#     else:
+#         cv2.line(result_image, (x_center_device, y_center_device), (int(center_contour[0]), int(center_contour[1])),
+#                  (0, 0, 255), thickness=line_thickness + 1)
+#         font = cv2.FONT_HERSHEY_SIMPLEX
+#         org = (20, 20)
+#         part_bgr = cv2.putText(result_image, 'Off'.format(i), org, font,
+#                                0.5, (0, 0, 255), 2, cv2.LINE_AA)
+#         result_is_on = False
+#
+#     return result_is_on, result_image
+#
+SHOW = True
 
-    output = img.copy()
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+# https://drive.google.com/file/d/1_Y9P2OjRnhDCrxlqrVzuvD1AdE15TJ-l/view?usp=sharing
+PATH_TO_INSCRIPTION_IS_ON_TEMPLATE = 'C:/Users/andre/Notebooks/rosseti/templates/temp_is_on.png'
+PATH_TO_INSCRIPTION_IS_OFF_TEMPLATE = 'C:/Users/andre/Notebooks/rosseti/templates/temp_is_off.png'
 
-    circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1.2, 100)
-    device = None
-    # ensure at least some circles were found
-    if circles is not None:
-        # convert the (x, y) coordinates and radius of the circles to integers
-        circles = np.round(circles[0, :]).astype("int")
-        # loop over the (x, y) coordinates and radius of the circles
-        for (x, y, r) in circles:
-            if r < 60:
-                continue
-            device = img.copy()[y - r: y + r, x - r: x + r, :]
-            cv2.circle(output, (x, y), r, (0, 255, 0), 4)
-            cv2.rectangle(output, (x - 5, y - 5), (x + 5, y + 5), (0, 128, 255), -1)
 
-    hsv_min = np.array((2, 28, 65), np.uint8)
-    hsv_max = np.array((26, 238, 255), np.uint8)
-    img1 = device.copy()
+def get_inscription_localization(img, inscription_template):
+    image = img.copy()
+    template = cv2.cvtColor(inscription_template, cv2.COLOR_BGR2GRAY)
+    template = cv2.Canny(template, 50, 200)
+    (tH, tW) = template.shape[:2]
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    found = None
 
-    hsv = cv2.cvtColor(device, cv2.COLOR_BGR2HSV)
+    # loop over the scales of the image
+    for scale in np.linspace(0.8, 1.0, 2)[::-1]:
+        # resize the image according to the scale, and keep track
+        # of the ratio of the resizing
+        resized = imutils.resize(gray, width = int(gray.shape[1] * scale))
+        r = gray.shape[1] / float(resized.shape[1])
+
+        # if the resized image is smaller than the template, then break
+        # from the loop
+        if resized.shape[0] < tH or resized.shape[1] < tW:
+            break
+
+        # detect edges in the resized, grayscale image and apply template
+        # matching to find the template in the image
+        edged = cv2.Canny(resized, 50, 200)
+        result = cv2.matchTemplate(edged, template, cv2.TM_CCOEFF)
+        (_, maxVal, _, maxLoc) = cv2.minMaxLoc(result)
+
+        # if we have found a new maximum correlation value, then ipdate
+        # the bookkeeping variable
+        if found is None or maxVal > found[0]:
+            found = (maxVal, maxLoc, r)
+
+    # unpack the bookkeeping varaible and compute the (x, y) coordinates
+    # of the bounding box based on the resized ratio
+    (_, maxLoc, r) = found
+    (startX, startY) = (int(maxLoc[0] * r), int(maxLoc[1] * r))
+    (endX, endY) = (int((maxLoc[0] + tW) * r), int((maxLoc[1] + tH) * r))
+    cv2.rectangle(image, (startX, startY), (endX, endY), (0, 0, 128), 2)
+    return (startX, startY, endX, endY)
+
+def cut_device(img_region_device):
+    hsv_min = np.array((0, 0, 0), np.uint8)
+    hsv_max = np.array((179, 255, 53), np.uint8)
+
+    try:
+        hsv = cv2.cvtColor(img_region_device, cv2.COLOR_BGR2HSV)
+    except:
+        return (None, None, None)
     thresh = cv2.inRange(hsv, hsv_min, hsv_max)
-    contours, hierarchy = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    cv2.drawContours(img1, contours, -1, (255, 0, 0), 3, cv2.LINE_AA, hierarchy, 1)
+    contours, hierarchy = cv2.findContours( thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    # _= cv2.drawContours(img_region_device, contours, -1, (255,0,0), 3, cv2.LINE_AA, hierarchy, 1)
+    if len(contours) == 0:
+        return (None, None, None)
 
     center_contour = None
+    result_centers = None
+    result_boundRect = None
+    result_radius = 0
+
     for i, c in enumerate(contours):
         contours_poly = cv2.approxPolyDP(c, 3, True)
         boundRect = cv2.boundingRect(contours_poly)
         centers, radius = cv2.minEnclosingCircle(contours_poly)
-        center_contour = centers
+        if radius > result_radius:
+            result_radius = radius
+            result_centers = centers
+            result_boundRect = boundRect
 
-    x_center_device = int(img1.shape[1] / 2)
-    y_center_device = int(img1.shape[0] / 2)
+    return result_boundRect, result_centers, result_radius
 
-    result_image = img1.copy()
-    line_thickness = 2
-    cv2.line(result_image, (y_center_device, 0), (y_center_device, img1.shape[0]), (0, 255, 0),
-             thickness=line_thickness)
-    cv2.line(result_image, (0, x_center_device), (img1.shape[1], x_center_device), (0, 255, 0),
-             thickness=line_thickness)
-    if center_contour[0] < x_center_device and y_center_device < center_contour[1]:
-        cv2.line(result_image, (x_center_device, y_center_device), (int(center_contour[0]), int(center_contour[1])),
-                 (0, 255, 0), thickness=line_thickness + 1)
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        org = (20, 20)
-        part_bgr = cv2.putText(result_image, 'On'.format(i), org, font,
-                               0.5, (0, 255, 0), 2, cv2.LINE_AA)
-        result_is_on = True
-    else:
-        cv2.line(result_image, (x_center_device, y_center_device), (int(center_contour[0]), int(center_contour[1])),
-                 (0, 0, 255), thickness=line_thickness + 1)
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        org = (20, 20)
-        part_bgr = cv2.putText(result_image, 'Off'.format(i), org, font,
-                               0.5, (0, 0, 255), 2, cv2.LINE_AA)
-        result_is_on = False
 
-    return result_is_on, result_image
+def get_pointer_center(img_device):
+    hsv_min = np.array((2, 28, 65), np.uint8)
+    hsv_max = np.array((26179, 255, 255), np.uint8)
 
+    hsv = cv2.cvtColor(img_device, cv2.COLOR_BGR2HSV)
+    thresh = cv2.inRange(hsv, hsv_min, hsv_max)
+    contours, hierarchy = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    # _= cv2.drawContours(img_region_device, contours, -1, (255,0,0), 3, cv2.LINE_AA, hierarchy, 1)
+
+    if len(contours) == 0:
+        return (None, None, None)
+
+    result_center = None
+    result_radius = 0
+
+    for i, c in enumerate(contours):
+        contours_poly = cv2.approxPolyDP(c, 3, True)
+        centers, radius = cv2.minEnclosingCircle(contours_poly)
+        if radius > result_radius:
+            result_radius = radius
+            result_center = centers
+
+    return result_center
+
+
+def get_result(img_rgb):
+    status_is_on = True
+
+    template_is_on = cv2.imread(PATH_TO_INSCRIPTION_IS_ON_TEMPLATE)
+    start1_x, start1_y, end1_x, end1_y = get_inscription_localization(img_rgb, template_is_on)
+
+    template_is_off = cv2.imread(PATH_TO_INSCRIPTION_IS_OFF_TEMPLATE)
+    start2_x, start2_y, end2_x, end2_y = get_inscription_localization(img_rgb, template_is_off)
+
+    ration = np.abs(end1_x - start2_x)
+
+    start_y = start1_y - int(ration * 0.40)
+    if start_y < 0:
+        start_y = 0
+    end_y = end1_y + int(ration * 0.1)
+    if end_y > img_rgb.shape[0]:
+        end_y = img_rgb.shape[0]
+
+    img_region_device = img_rgb[start_y: end_y,
+                        end1_x: start2_x,
+                        :].copy()
+
+    boundRect_device, center_device, radius_device = cut_device(img_region_device)
+
+    if boundRect_device is None or center_device is None or radius_device is None:
+        return None
+
+    img_device = img_region_device[boundRect_device[1]: boundRect_device[3],
+                 boundRect_device[0]: boundRect_device[2],
+                 :].copy()
+
+    center_pointer = get_pointer_center(img_region_device)
+
+    if center_pointer is None:
+        return None
+
+    if center_pointer[0] > center_device[0]:
+        status_is_on = False
+
+    if SHOW:
+        print('\ntemplate_is_on')
+        # cv2_imshow(img_rgb[start1_y:end1_y, start1_x:end1_x])
+        # print('\ntemplate_is_off')
+        # cv2_imshow(img_rgb[start2_y:end2_y, start2_x:end2_x])
+        # print('\nimg_region_device')
+        # cv2_imshow(img_region_device)
+        # print('\nimg_device')
+        # cv2_imshow(img_device)
+        # print('\ncenter_device')
+        # cv2_imshow(
+        #     cv2.line(img_device, (int(center_device[0]), 0), (int(center_device[0]), img_device.shape[0]), (0, 255, 0),
+        #              thickness=3))
+
+        print('\npointer')
+        # cv2_imshow(cv2.line(img_device,
+        #                     (int(center_device[0]), int(center_device[1])),
+        #                     (int(center_pointer[0]), int(center_pointer[1])),
+        #                     (0, 255, 0),
+        #                     thickness=3))
+        print("STATUS", status_is_on)
+
+    return status_is_on
+
+
+# path_to_dir = '/content/drive/My Drive/Colab Notebooks/data/circle/images'
+# for filename in reversed(sorted(os.listdir(path_to_dir))):
+#     path_to_img = os.path.join(path_to_dir, filename)
+#
+#     image_bgr = cv2.imread(path_to_img)
+#     status = get_result(image_bgr)
+#
+#     if status is None:
+#         print('Датчик не распознан')
+#     elif status:
+#         print('Вкл')
+#     else:
+#         print('Откл')

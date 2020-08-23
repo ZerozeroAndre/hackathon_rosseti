@@ -49,6 +49,7 @@ def main():
             resized_image = cv2.resize(our_image_2, (400, 300))
             st.image(resized_image)
 
+
             enhance_type = st.sidebar.radio("Модели",
                                             ["Оригинал",   "Круг",
                                              "Вилки"])
@@ -102,16 +103,49 @@ def main():
                 new_img = np.array(our_image.convert('RGB'))
                 image = np.array(our_image)
 
-                circle_status,circle_image = get_result(new_img)
 
+                circle_status = get_result(new_img)
+                print(circle_status)
+                if circle_status is None:
 
-                st.image(circle_image)
-                st.text(circle_status)
+                    circle_text = 'Датчик не распознан'
+                elif circle_status:
+                         circle_text = 'Включен'
+                else:
+                         circle_text = 'Отключен'
+                # if circle_status == "False":
+                #     circle_text = "Отключен"
+                # elif circle_status == "True":
+                #     circle_text = "Включен"
+                # elif circle_status == "None":
+                #     circle_text = "Не распознан"
+
+                print(circle_status)
+                # print(circle_text)
+                st.markdown('Элегазовый силовой выключатель **{}**.'.format(circle_text))
+
+                df_status = {'Адрес': ['ш. Энтузиастов, 56, Москва'],
+                             'Проблема': ["Выявлены дефекты"],
+                             "Ответственный": ['Петров'],
+                             "Решено": ["Нет"]
+
+                             }
+                df = pd.DataFrame(df_status, columns=['Адрес', 'Проблема', "Ответственный", "Решено"], )
+                st.table(df)
 
             elif enhance_type == 'Оригинал':
                 image = np.array(our_image)
                 resized_image = cv2.resize(image, (400, 300))
                 st.image(resized_image, width=None)
+                df_status = {'Адрес': ['ш. Энтузиастов, 56, Москва'],
+                             'Проблема': ["Выявлены дефекты"],
+                             "Ответственный": ['Петров'],
+                             "Решено": ["Нет"]
+
+                             }
+                df = pd.DataFrame(df_status, columns=['Адрес', 'Проблема', "Ответственный", "Решено"], )
+
+                st.table(df)
             else:
                 image = np.array(our_image)
                 resized_image = cv2.resize(image, (400, 300))
@@ -129,7 +163,7 @@ def main():
 
         if video_file is not None:
             g = io.BytesIO(video_file.read())  ## BytesIO Object
-            temporary_location = "testout_simple.mp4"
+            #temporary_location = "testout_simple.mp4"
 
             with open(temporary_location, 'wb') as out:  ## Open temporary file as bytes
                 out.write(g.read())  ## Read bytes into file
